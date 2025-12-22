@@ -1,0 +1,231 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import GaussianNB
+from sklearn.svm import SVC
+from imblearn.over_sampling import SMOTE
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+#load data
+df= pd.read_csv('earthquake_1995-2023.csv')
+print("Data loaded successfully!")
+print(df.head())
+
+#check info
+print(df.info())
+print(df.describe())
+
+#drop missing values
+df = df.dropna(subset=['latitude','longitude','depth','magnitude'])
+print("After dropping missing:", df.shape)
+
+#create label: 1 if magnitude >=7, else 0
+df['label']= (df['magnitude'] >= 7.0).astype(int)
+print(df['label'].value_counts())
+
+#select features 
+features = ['latitude','longitude','depth','sig','gap','dmin','mmi']
+X= df[features]
+y= df['label']
+
+#handle imbalance
+smote = SMOTE(random_state=42)
+X_res, y_res = smote.fit_resample(X, y)
+print("Resampled class counts:\n", pd.Series(y_res).value_counts())
+
+#split data
+X_train, X_test, y_train, y_test = train_test_split(X_res, y_res, 
+                                                    test_size=0.2, 
+                                                    random_state=42, 
+                                                    stratify=y_res)
+
+#scale features 
+scaler =  StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+
+####### Train by Logistic Regression Model #######
+
+log_reg = LogisticRegression()
+log_reg.fit(X_train_scaled, y_train)
+
+# Predict
+y_pred_log = log_reg.predict(X_test_scaled)
+
+# Accuracy
+print("\nLogistic Regression Accuracy:", accuracy_score(y_test, y_pred_log))
+
+#Classification Report
+print("\nClassification Report (Logistic Regression) :\n ", classification_report(y_test, y_pred_log))
+
+#Confusion Matrix
+cm_lr = confusion_matrix(y_test, y_pred_log)
+print("\n===Confusiom Matrix:Logistic Regression===")
+print(cm_lr)
+
+#plot
+plt.figure(figsize=(6,4))
+sns.heatmap(cm_lr,annot=True,fmt='d',cmap='Blues')
+plt.title("Logistic Regression - Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
+
+
+######## Create SVM classifier ###########
+
+svm_model = SVC(kernel='rbf', random_state=42)
+
+# Train the model
+svm_model.fit(X_train_scaled, y_train)
+
+# Predict on test data
+y_pred_svm = svm_model.predict(X_test_scaled)
+
+# Accuracy
+svm_accuracy = accuracy_score(y_test, y_pred_svm)
+print("SVM Accuracy:", svm_accuracy)
+
+# Classification Report (Precision, Recall, F1-score)
+print("\nClassification Report (SVM) : \n")
+print(classification_report(y_test, y_pred_svm))
+
+# Confusion Matrix
+print("\n===Confusiom Matrix:SVM===")
+cm_svm = confusion_matrix(y_test, y_pred_svm)
+print(cm_svm)
+
+#Plot
+plt.figure(figsize=(6,4))
+sns.heatmap(cm_svm,annot=True,fmt='d',cmap='Greens')
+plt.title("SVM - Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
+
+
+######## Create Naive Bayes classifier ##########
+
+nb_model = GaussianNB()
+
+# Train the model
+nb_model.fit(X_train_scaled, y_train)
+
+# Predict on test data
+y_pred_nb = nb_model.predict(X_test_scaled)
+
+# Accuracy
+nb_accuracy = accuracy_score(y_test, y_pred_nb)
+print("Naive Bayes Accuracy:", nb_accuracy)
+
+# Classification Report
+print("\nClassification Report (Naive Bayes) : \n")
+print(classification_report(y_test, y_pred_nb))
+
+# Confusion Matrix
+print("\n===Confusiom Matrix:Naive Bayes===")
+cm_nb= confusion_matrix(y_test, y_pred_nb)
+print(cm_nb)
+
+#Plot
+plt.figure(figsize=(6,4))
+sns.heatmap(cm_nb,annot=True,fmt='d',cmap='Oranges')
+plt.title("Naive Bayes - Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
+
+
+########## Create Random Forest classifier ###########
+
+model = RandomForestClassifier(
+    n_estimators=300,
+    max_depth=15,
+    min_samples_split=4,
+    min_samples_leaf=2,
+    random_state=42
+)
+
+#Train the model
+model.fit(X_train_scaled, y_train)
+
+#Predict on test data
+y_pred_rf = model.predict(X_test_scaled)
+
+#Accuracy
+print("\nAccuracy (Random Forest):", accuracy_score(y_test , y_pred_rf))
+
+#CLassification Report
+print("\nClassification Report (Random Forest): \n", classification_report(y_test, y_pred_rf))
+
+#Confusion Matrix
+print("\n===Confusiom Matrix:Random Forest===")
+cm_rf= confusion_matrix(y_test, y_pred_rf)
+print(cm_rf)
+
+#Plot
+plt.figure(figsize=(6,4))
+sns.heatmap(cm_rf,annot=True,fmt='d',cmap='Reds')
+plt.title("Random Forest - Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
+
+#save model
+joblib.dump({'model': model, 'scaler': scaler,'features': features},
+            'earthquake_model.joblib')
+print("Model saved as earthquake_model.joblib!")
+
+# #For Data 
+# sample = pd.DataFrame([{
+#     'latitude': 28.5,
+#     'longitude': 77.2,
+#     'depth': 10,
+#     'sig': 150,
+#     'gap': 80,
+#     'dmin': 0.5,
+#     'mmi': 3
+# }])
+# ==========================================
+# USER INPUT PREDICTION
+# ==========================================
+
+print("\nEnter earthquake details:")
+lat = float(input("Latitude: "))
+lon = float(input("Longitude: "))
+depth = float(input("Depth: "))
+sig = float(input("Significance (sig): "))
+gap = float(input("Gap: "))
+dmin = float(input("Distance to nearest station (dmin): "))
+mmi = float(input("MMI: "))
+
+user_sample = pd.DataFrame([{
+    'latitude': lat,
+    'longitude': lon,
+    'depth': depth,
+    'sig': sig,
+    'gap': gap,
+    'dmin': dmin,
+    'mmi': mmi
+}])
+
+user_scaled = scaler.transform(user_sample[features])
+user_pred = model.predict(user_scaled)[0]
+
+print("\n======================")
+print(" USER PREDICTION RESULT")
+print("======================")
+
+if user_pred == 1:
+    print("⚠️ HIGH-MAGNITUDE EARTHQUAKE (>= 7.0)")
+else:
+    print("✔ Low/Moderate Earthquake (< 7.0)")
+
+
